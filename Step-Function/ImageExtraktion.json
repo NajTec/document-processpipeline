@@ -1,0 +1,136 @@
+{
+    "Comment": "A description of my state machine",
+    "StartAt": "GenerateId",
+    "States": {
+      "GenerateId": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "OutputPath": "$.Payload",
+        "Parameters": {
+          "Payload.$": "$",
+          "FunctionName": "arn:aws:lambda:eu-central-1:<accid>:function:GenId"
+        },
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.AWSLambdaException",
+              "Lambda.SdkClientException"
+            ],
+            "IntervalSeconds": 2,
+            "MaxAttempts": 6,
+            "BackoffRate": 2
+          }
+        ],
+        "Next": "StartDocumentTextDetection"
+      },
+      "StartDocumentTextDetection": {
+        "Type": "Task",
+        "Parameters": {
+          "DocumentLocation": {
+            "S3Object": {
+              "Bucket.$": "$.Bucket",
+              "Name.$": "$.Name"
+            }
+          }
+        },
+        "Resource": "arn:aws:states:::aws-sdk:textract:startDocumentTextDetection",
+        "Next": "GetDocumentTextDetection",
+        "ResultPath": "$.JobStatus",
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "States.TaskFailed"
+            ],
+            "BackoffRate": 1,
+            "IntervalSeconds": 3,
+            "MaxAttempts": 3
+          }
+        ]
+      },
+      "GetDocumentTextDetection": {
+        "Type": "Task",
+        "Parameters": {
+          "JobId.$": "$.JobStatus.JobId"
+        },
+        "Resource": "arn:aws:states:::aws-sdk:textract:getDocumentTextDetection",
+        "ResultSelector": {
+          "jobStatus.$": "$.JobStatus"
+        },
+        "ResultPath": "$.DocumentDetection",
+        "Next": "Choice (1)"
+      },
+      "Choice (1)": {
+        "Type": "Choice",
+        "Choices": [
+          {
+            "Variable": "$.DocumentDetection.jobStatus",
+            "StringMatches": "SUCCEEDED",
+            "Next": "04-Write Results to Buckets"
+          }
+        ],
+        "Default": "Wait (1)"
+      },
+      "Wait (1)": {
+        "Type": "Wait",
+        "Seconds": 5,
+        "Next": "03-Poll-Job"
+      },
+      "03-Poll-Job": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "OutputPath": "$.Payload",
+        "Parameters": {
+          "Payload.$": "$",
+          "FunctionName": "arn:aws:lambda:eu-central-1:<accid>:function:03-Poll-Job-Status"
+        },
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.AWSLambdaException",
+              "Lambda.SdkClientException"
+            ],
+            "IntervalSeconds": 2,
+            "MaxAttempts": 6,
+            "BackoffRate": 2
+          }
+        ],
+        "Next": "Choice (1)"
+      },
+      "04-Write Results to Buckets": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "OutputPath": "$.Payload",
+        "Parameters": {
+          "Payload.$": "$",
+          "FunctionName": "arn:aws:lambda:eu-central-1:<accid>:function:04-Write-Results"
+        },
+        "Retry": [
+          {
+            "ErrorEquals": [
+              "Lambda.ServiceException",
+              "Lambda.AWSLambdaException",
+              "Lambda.SdkClientException"
+            ],
+            "IntervalSeconds": 2,
+            "MaxAttempts": 6,
+            "BackoffRate": 2
+          }
+        ],
+        "Next": "ML Inference Workflow"
+      },
+      "ML Inference Workflow": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::aws-sdk:sfn:startExecution",
+        "Parameters": {
+          "StateMachineArn": "arn:aws:states:eu-central-1:<accid>:stateMachine:Image_Processing",
+          "Input": {
+            "StatePayload.$": "$",
+            "AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$": "$$.Execution.Id"
+          }
+        },
+        "End": true
+      }
+    }
+  }

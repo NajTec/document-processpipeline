@@ -1,0 +1,92 @@
+{
+  "Comment": "Image Processing",
+  "StartAt": "Image Preprocess",
+  "States": {
+    "Image Preprocess": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "arn:aws:lambda:eu-central-1:<accid>:function:01-image-processing_v1"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Image Slicing",
+      "InputPath": "$.StatePayload"
+    },
+    "Image Slicing": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "arn:aws:lambda:eu-central-1:<accid>:function:02-image-slicing"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Inference Endpoint"
+    },
+    "Inference Endpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "arn:aws:lambda:eu-central-1:069034333020:function:03-image_inference-priv"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Map"
+    },
+    "Map": {
+      "Type": "Map",
+      "End": true,
+      "Iterator": {
+        "StartAt": "SNS Publish",
+        "States": {
+          "SNS Publish": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::sns:publish",
+            "Parameters": {
+              "Message.$": "$",
+              "TopicArn": "arn:aws:sns:eu-central-1:<accid>:test_topic"
+            },
+            "End": true
+          }
+        }
+      },
+      "ItemsPath": "$.comments"
+    }
+  }
+}
