@@ -53,7 +53,7 @@
       "OutputPath": "$.Payload",
       "Parameters": {
         "Payload.$": "$",
-        "FunctionName": "arn:aws:lambda:eu-central-1:069034333020:function:03-image_inference-priv"
+        "FunctionName": "arn:aws:lambda:eu-central-1:<accid>:function:03-image_inference-priv"
       },
       "Retry": [
         {
